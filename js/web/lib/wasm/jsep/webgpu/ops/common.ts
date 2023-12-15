@@ -331,12 +331,21 @@ export const sumVector = (name: string, components: number) => {
  * @param index - the index of variable element.
  * @param length - the length of variable.
  */
-export const getElementAt = (name: string, index: number|string, length: number): string => {
+export const getElementAt = (name: string, index: number|string, length: number,
+  _dataType?: string): string => {
   if (name.startsWith('uniforms.') && length > 4) {
-    if (typeof (index) === 'string') {
-      return `${name}[(${index}) / 4][(${index}) % 4]`;
+    if (_dataType === 'f16') {
+      if (typeof (index) === 'string') {
+        return `${name}[(${index}) / 4].w[(${index}) % 4]`;
+      } else {
+        return `${name}[${Math.floor(index / 4)}].w[${index % 4}]`;
+      }
     } else {
-      return `${name}[${Math.floor(index / 4)}][${index % 4}]`;
+      if (typeof (index) === 'string') {
+        return `${name}[(${index}) / 4][(${index}) % 4]`;
+      } else {
+        return `${name}[${Math.floor(index / 4)}][${index % 4}]`;
+      }
     }
   } else {
     return length > 1 ? `${name}[${index}]` : name;
@@ -679,7 +688,7 @@ export const internalVariable =
     (name: string, type: number, shapeOrRank: number|readonly number[], components: 1|2|3|4 = 1): IndicesHelper =>
         createIndicesHelper(name, type, shapeOrRank, 'internal', components);
 
-export type UniformDataElementType = 'u32'|'f32'|'i32';
+export type UniformDataElementType = 'u32'|'f32'|'i32'|'f16';
 export type UniformsArrayType = Array<{name: string; type: UniformDataElementType; length?: number}>;
 
 /**
@@ -848,9 +857,18 @@ class ShaderHelperImpl implements ShaderHelper {
     }
 
     const uniformSnippets: string[] = [];
+    let uniformWrappers = '';
+
     for (const {name, type, length} of this.uniforms) {
       if (length && length > 4) {
-        uniformSnippets.push(`${name}:array<vec4<${type}>, ${Math.ceil(length / 4)}>`);
+        if (type === 'f16') {
+          if (uniformWrappers === '') {
+            uniformWrappers = 'struct wrapped_vec4f16 { @size(16) w: vec4<f16>};';
+          }
+          uniformSnippets.push(`${name}:array<wrapped_vec4f16,${Math.ceil(length / 4)}>`);
+        } else {
+          uniformSnippets.push(`${name}:array<vec4<${type}>,${Math.ceil(length / 4)}>`);
+        }
       } else {
         const typeTemp = length == null || length === 1 ? type : `vec${length}<${type}>`;
         uniformSnippets.push(`${name}:${typeTemp}`);
@@ -858,6 +876,7 @@ class ShaderHelperImpl implements ShaderHelper {
     }
 
     return `
+      ${uniformWrappers}
       struct Uniforms { ${uniformSnippets.join(', ')} };
       @group(0) @binding(${this.variableIndex}) var<uniform> uniforms: Uniforms;`;
   }

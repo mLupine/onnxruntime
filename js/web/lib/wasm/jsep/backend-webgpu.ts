@@ -131,6 +131,7 @@ export class WebGpuBackend {
   private commandEncoder: GPUCommandEncoder|null = null;
   private computePassEncoder: GPUComputePassEncoder|null = null;
   pendingDispatchNumber = 0;
+  maxPendingDispatchNumber = 0;
 
   queryData?: GpuData;
   querySet?: GPUQuerySet;
@@ -249,6 +250,10 @@ export class WebGpuBackend {
       this.device.queue.submit([this.getCommandEncoder().finish()]);
       this.gpuDataManager.refreshPendingBuffers();
       this.commandEncoder = null;
+      if (this.pendingDispatchNumber > this.maxPendingDispatchNumber) {
+        console.log(`maxPendingDispatchNumber: ${this.pendingDispatchNumber}`);
+        this.maxPendingDispatchNumber = this.pendingDispatchNumber;
+      }
       this.pendingDispatchNumber = 0;
     }
   }
@@ -401,16 +406,21 @@ export class WebGpuBackend {
   }
 
   upload(gpuDataId: number, data: Uint8Array): void {
+    // this.flush();
     this.gpuDataManager.upload(gpuDataId, data);
   }
 
   memcpy(src: number, dst: number): void {
+    // this.flush();
     this.gpuDataManager.memcpy(src, dst);
   }
 
   async download(gpuDataId: number, getTargetBuffer: () => Uint8Array): Promise<void> {
     // the underlying buffer may be changed after the async function is called. so we use a getter function to make sure
     // the buffer is up-to-date.
+    if (this.pendingDispatchNumber > 0) {
+      this.flush();
+    }
     await this.gpuDataManager.download(gpuDataId, getTargetBuffer);
   }
 

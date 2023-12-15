@@ -253,8 +253,8 @@ const calculateOriginalIndicesFromOutputIndices =
       for (var i:u32 = 0; i < ${outputShape.length}; i++) {
         var output_index = ${output.type.value}(${output.indicesGet('output_indices', 'i')});
         var scale = ${getElementAt('uniforms.scales', 'i', scalesLength)};
-        var roi_low = ${getElementAt('uniforms.roi', 'i', roiLength)};
-        var roi_hi = ${getElementAt('uniforms.roi', `i + ${inputShape.length}`, roiLength)};
+        var roi_low = ${getElementAt('uniforms.roi', 'i', roiLength, output.type.value)};
+        var roi_hi = ${getElementAt('uniforms.roi', `i + ${inputShape.length}`, roiLength, output.type.value)};
         if (scale == 1.0) {
           original_indices[i] = output_index;
         } else {
@@ -279,8 +279,8 @@ const calculateInputIndicesFromOutputIndices =
         if (scale == 1.0) {
           input_index = u32(output_index);
         } else {
-          var roi_low = ${getElementAt('uniforms.roi', 'i', roiLength)};
-          var roi_hi = ${getElementAt('uniforms.roi', `i + ${inputShape.length}`, roiLength)};
+          var roi_low = ${getElementAt('uniforms.roi', 'i', roiLength, output.type.value)};
+          var roi_hi = ${getElementAt('uniforms.roi', `i + ${inputShape.length}`, roiLength, output.type.value)};
           var input_shape_i = ${output.type.value}(${getElementAt('uniforms.input_shape', 'i', inputShape.length)});
           var output_shape_i = ${output.type.value}(${getElementAt('uniforms.output_shape', 'i', outputShape.length)});
           var original_idx = getOriginalCoordinateFromResizedCoordinate(output_index, scale, output_shape_i,
@@ -489,8 +489,8 @@ const createResizeProgramInfo =
       `}
       ${
           shaderHelper.registerUniform('output_size', 'u32')
-              .registerUniform('scales', 'f32', scales.length)
-              .registerUniform('roi', 'f32', roi.length)
+              .registerUniform('scales', dataType, scales.length)
+              .registerUniform('roi', dataType, roi.length)
               .declareVariables(input, output)}
       ${shaderHelper.mainStart()}
         ${shaderHelper.guardAgainstOutOfBoundsWorkgroupSizes('uniforms.output_size')}

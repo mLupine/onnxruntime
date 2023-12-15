@@ -256,6 +256,7 @@ else()
       "SHELL:-s SAFE_HEAP=1"
       "SHELL:-s STACK_OVERFLOW_CHECK=2"
       "SHELL:-s DEMANGLE_SUPPORT=1"
+      "SHELL:-s NO_DISABLE_EXCEPTION_CATCHING=1"
     )
   else()
     target_link_options(onnxruntime_webassembly PRIVATE

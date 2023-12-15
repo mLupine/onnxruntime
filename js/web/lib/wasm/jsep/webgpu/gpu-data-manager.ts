@@ -138,6 +138,7 @@ class GpuDataManagerImpl implements GpuDataManager {
 
   // The external buffers registered users for IO Binding.
   private externalBuffers: Map<GPUBuffer, GpuDataId>;
+  private maxPending: number;
 
   constructor(private backend: WebGpuBackend) {
     this.storageCache = new Map();
@@ -146,6 +147,7 @@ class GpuDataManagerImpl implements GpuDataManager {
     this.buffersForUploadingPending = [];
     this.buffersPending = [];
     this.externalBuffers = new Map();
+    this.maxPending = 0;
   }
 
   upload(id: GpuDataId, data: Uint8Array): void {
@@ -307,6 +309,10 @@ class GpuDataManagerImpl implements GpuDataManager {
   }
 
   refreshPendingBuffers(): void {
+    if (this.buffersPending.length > this.maxPending) {
+      this.maxPending = this.buffersPending.length;
+      console.log(`maxPending: ${this.maxPending}`);
+    }
     for (const buffer of this.buffersForUploadingPending) {
       // upload buffer is only useful in the session creation time. So we don't need to reuse them in session running.
       buffer.destroy();
