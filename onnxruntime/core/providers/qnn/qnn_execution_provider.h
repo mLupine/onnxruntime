@@ -11,6 +11,7 @@
 #include "core/providers/qnn/builder/qnn_graph_configs_helper.h"
 
 namespace onnxruntime {
+class Model;
 
 // Logical device representation.
 class QNNExecutionProvider : public IExecutionProvider {
@@ -68,7 +69,7 @@ class QNNExecutionProvider : public IExecutionProvider {
   bool disable_cpu_ep_fallback_ = false;  // True if CPU EP fallback has been disabled for this session.
   bool qnn_context_embed_mode_ = true;
   int32_t vtcm_size_in_mb_ = 0;
-  std::unique_ptr<onnxruntime::Model> qnn_ep_context_model_;
+  std::unique_ptr<Model> qnn_ep_context_model_;
 };
 
 }  // namespace onnxruntime
