@@ -600,9 +600,6 @@ class PosixEnv : public Env {
 #ifdef ORT_USE_CPUINFO
   PosixEnv() {
     cpuinfo_available_ = cpuinfo_initialize();
-    if (!cpuinfo_available_) {
-      LOGS_DEFAULT(INFO) << "cpuinfo_initialize failed";
-    }
   }
   bool cpuinfo_available_{false};
 #endif  // ORT_USE_CPUINFO

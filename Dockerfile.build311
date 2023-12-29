@@ -1,0 +1,57 @@
+FROM public.ecr.aws/lambda/python:3.11
+
+# Although using a Dockerfile for building a library is not the most obvious choice, it's the most conventient given
+# the heavy nature of the process. It allows us to cache the results of each step in case the build needs to be
+# repeated and/or adjusted.
+#
+# If you're reading this, you probably need to build a custom version of onnxruntime with patches for ARM Lambda.
+# Before proceeding, I need to warn you that the process takes many hours to complete even on a high-spec Mac. You also
+# need an M{1,2,3} Mac (or another ARM machine) to follow the steps below as I'm quite sure that executing it in QEMU
+# would take longer than migrating away from Onnx. Nevertheless, here's a short guide in case you ever need to embark
+# on that sad journey.
+#
+# 1. Go to https://github.com/microsoft/onnxruntime/compare/rel-1.16.3...mLupine:onnxruntime:rel-1.16.3-lupin and
+#    create a patch from the changes there.
+# 2. Fork the upstream onnxruntime repository and create a new branch from the release branch of the version you're
+#    trying to build. Apply the patch from the previous step.
+# 3. Adjust the Dockerfile to point to the correct repo and branch, and push the changes to your fork upstream remote.
+# 4. Build the Docker image, hoping that no further changes will be necessary.
+# 5. Extract the library from the newly built image:
+#      docker run -it --rm -v $(pwd):/mnt/data <image_name> \
+#        -c 'cp /onnxruntime_src/build/Linux/Release/dist/onnxruntime-*-cp311-cp311-linux_aarch64.whl /mnt/data/'
+# 6. Upload the wheel to the pip repository of your choice (for Kalepa, that would be KalePi).
+
+SHELL [ "/bin/bash", "-c" ]
+
+ENV LD_LIBRARY_PATH=""
+
+RUN yum update
+RUN yum groupinstall -y "Development Tools"
+RUN yum install -y curl wget git gcc10 gcc10-c++ make patch zlib-devel bzip2 bzip2-devel readline-devel sqlite \
+    sqlite-devel openssl11-devel openssl11 tk-devel libffi-devel xz-devel
+RUN yum remove -y gcc
+
+RUN find /usr/bin -name "gcc10-*" -exec sh -c 'ln -s "$1" "${1/\/usr\/bin\/gcc10-//usr/local/bin/}"' _ {} \;
+
+# RUN cd /tmp && wget -qO gcc.tgz https://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-13.2.0/gcc-13.2.0.tar.gz && tar -xzf gcc.tgz && cd gcc-* && ./contrib/download_prerequisites && mkdir build && cd build && ../configure --enable-languages=c,c++ --disable-multilib && make -j8 && make install
+
+ARG PYVER=3.11
+RUN curl https://pyenv.run | bash
+ENV PYENV_ROOT="/root/.pyenv"
+ENV PATH="$PYENV_ROOT/bin:$PATH"
+RUN eval "$(pyenv init -)" && pyenv install ${PYVER} && pyenv global ${PYVER}
+
+RUN wget -qO /tmp/cmake.tgz https://github.com/Kitware/CMake/releases/download/v3.28.1/cmake-3.28.1.tar.gz && tar -xzf /tmp/cmake.tgz -C /tmp && cd /tmp/cmake-* && ./bootstrap && make -j8 && make install
+
+# RUN cd /tmp && git clone https://github.com/google/flatbuffers.git && cd flatbuffers && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release && make && make install
+
+ARG PULL_BRANCH=rel-1.16.3-lupin
+RUN git clone -b ${PULL_BRANCH} --single-branch --depth=1 https://github.com/mLupine/onnxruntime.git /onnxruntime_src
+
+RUN sed -i 's/numpy/numpy==1.23.1/g' /onnxruntime_src/requirements-dev.txt
+
+RUN eval "$(pyenv init -)" && cd /onnxruntime_src && python${PYVER} -m pip install -r requirements-dev.txt
+
+RUN eval "$(pyenv init -)" && cd /onnxruntime_src && ./build.sh --config=Release --update --build --build_wheel --enable_lto --skip_tests --parallel --compile_no_warning_as_error --allow_running_as_root
+
+ENTRYPOINT [ "/bin/bash" ]
